@@ -2,23 +2,14 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
-			"label": "rundev",
+			"label": "build",
 			"type": "shell",
-			"command": "vite",
-			"isBackground": true,
-			"problemMatcher": [
-				{
-					"pattern": {
-						"regexp": "^(.*)$",
-						"message": 1
-					},
-					"background": {
-						"activeOnStart": true,
-						"beginsPattern": "^>\\s maggie.clv.clientapp",
-						"endsPattern": "No\\sissues\\sfound.\\s*$"
-					}
-				}
-			],
+			"command": "npm run dev",
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"problemMatcher": ["$tsc"]
 		}
 	]
 }
