@@ -10,4 +10,5 @@ export interface IFolder {
   disc?: number;
   track?: number;
   genre?: string;
+  year?: number;
 }

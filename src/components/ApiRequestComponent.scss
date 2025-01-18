@@ -1,0 +1,28 @@
+a {
+    cursor: pointer;
+    color: light-blue;
+    &#tableLink:hover {
+        text-decoration: underline;
+    }
+    &#back {
+        color: auto;
+        & > .pi {
+            font-size: 2rem;
+            &:hover {
+                transform: scale(1.1);
+            }
+        }
+    }
+}
+
+#sidDiv {
+    margin-bottom: 2rem;   
+    width: 100%;
+    & > label {
+        padding-right: 1rem;
+        font-weight: bold;
+    }
+    .p-inputtext {
+        width: 45%;
+    }
+}
