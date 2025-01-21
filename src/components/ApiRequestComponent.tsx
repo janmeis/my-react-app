@@ -83,12 +83,12 @@ const ApiRequestComponent: React.FC = () => {
     return <span>{year}</span>;
   };
 
-  const getFolders = async (dirId?: string): Promise<IFolder[]> => {
+  const getTotalAndFolders = async (dirId?: string): Promise<{ total: number; folders: IFolder[] }> => {
     let url = `${config.baseUrl}/folder`;
     if (dirId) url += `?dirId=${dirId}`;
     const response = await axios.get(url);
-    let _folders = response.data as IFolder[];
-    return _folders;
+    let _folders = response.data.folders as IFolder[];
+    return { total: response.data.total, folders: _folders };
   };
 
   useEffect(() => {
@@ -109,8 +109,8 @@ const ApiRequestComponent: React.FC = () => {
 
     const fetchData = async () => {
       try {
-        let _folders = await getFolders();
-        setFolders(_folders);
+        const response = await getTotalAndFolders();
+        setFolders(response.folders);
       } catch (error) {
         console.error('Error fetching data:', error);
       }
@@ -129,8 +129,8 @@ const ApiRequestComponent: React.FC = () => {
 
     const fetchData = async () => {
       try {
-        let _folders = await getFolders(audioSource.dirId['artist']);
-        setFolders(_folders);
+        const response = await getTotalAndFolders(audioSource.dirId['artist']);
+        setFolders(response.folders);
       } catch (error) {
         console.error('Error fetching data:', error);
       }
@@ -144,8 +144,8 @@ const ApiRequestComponent: React.FC = () => {
 
     const fetchData = async () => {
       try {
-        let _folders = await getFolders(audioSource.dirId['album']);
-        _folders = _folders.sort(
+        const response = await getTotalAndFolders(audioSource.dirId['album']);
+        const _folders = response.folders.sort(
           (a, b) =>
             (a.album || '').localeCompare(b.album || '') ||
             (a.disc || 0) - (b.disc || 0) ||
@@ -159,6 +159,25 @@ const ApiRequestComponent: React.FC = () => {
 
     fetchData();
   }, [audioSource]);
+
+  // useEffect(() => {
+  //   if (audioSource.source === 'track') return;
+
+  //   setTimeout(() => {
+  //     let _folders = [] as IFolder[];
+  //     for (let folder of folders.slice(0, 10)) {
+  //       const fetchData = async () => {
+  //         const response = await getTotalAndFolders(folder.id);
+  //         folder = { ...folder, title: `${folder.title} (${response.total})` };
+  //         _folders = [..._folders, folder];
+  //         console.log('Fetching data for folder:', _folders);
+  //       };
+
+  //       fetchData();
+  //     }
+  //     setFolders(_folders);
+  //   }, 10000);
+  // }, [folders]);
 
   const onBackClick = (): void => {
     setFolders([]);
