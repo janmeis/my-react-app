@@ -1,13 +1,24 @@
+$link-color: rgb(13, 13, 150);
+
 a {
     cursor: pointer;
-    color: light-blue;
+    color: $link-color;
+    font-weight: 500;
+
+    &:visited {
+        color: $link-color;
+    }
+
     &#tableLink:hover {
         text-decoration: underline;
     }
+
     &#back {
         color: auto;
-        & > .pi {
+
+        &>.pi {
             font-size: 2rem;
+
             &:hover {
                 transform: scale(1.1);
             }
@@ -16,12 +27,14 @@ a {
 }
 
 #sidDiv {
-    margin-bottom: 2rem;   
+    margin-bottom: 2rem;
     width: 100%;
-    & > label {
+
+    &>label {
         padding-right: 1rem;
         font-weight: bold;
     }
+
     .p-inputtext {
         width: 45%;
     }
