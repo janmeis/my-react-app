@@ -6,6 +6,7 @@ import config from '../config.json';
 import { IFolder } from '../model/folder';
 import { InputText } from 'primereact/inputtext';
 import './ApiRequestComponent.scss';
+import { ToggleButton } from 'primereact/togglebutton';
 
 interface AudioSource {
   dirId: { [key: string]: string };
@@ -22,6 +23,8 @@ const ApiRequestComponent: React.FC = () => {
     dirId: {},
     source: 'artist',
   });
+  const [checked, setChecked] = useState<boolean>(false);
+  const [selectedLetter, setSelectedLetter] = useState<string>('a');
 
   const tableRef = React.createRef<DataTable<IFolder[]>>();
 
@@ -48,9 +51,7 @@ const ApiRequestComponent: React.FC = () => {
 
   const albumArtistBodyTemplate = () => <span>{audioSource.artist}</span>;
 
-  const parseAlbum = (
-    album: string | undefined
-  ): { album: string; year: string } => {
+  const parseAlbum = (album: string | undefined): { album: string; year: string } => {
     const match = yearAlbumRegex.exec(album || '');
     return {
       album: match ? match[2] : '',
@@ -174,18 +175,13 @@ const ApiRequestComponent: React.FC = () => {
     }
   };
 
+  const getLetterRegex = (letter: string): RegExp => new RegExp(`^(?:${letter}|${letter.toUpperCase()})`);
+
   return (
     <div>
       <div id='sidDiv'>
         <label htmlFor='sid'>sid</label>
-        <InputText
-          type='text'
-          className='p-inputtext'
-          id='sid'
-          name='sid'
-          value={sid}
-          disabled
-        />
+        <InputText type='text' className='p-inputtext' id='sid' name='sid' value={sid} disabled />
       </div>
 
       <h3>
@@ -196,20 +192,65 @@ const ApiRequestComponent: React.FC = () => {
         )}
       </h3>
       {audioSource.source === 'artist' && (
-        <DataTable
-          value={folders}
-          stripedRows
-          scrollable
-          scrollHeight='75vh'
-          paginator
-          rows={25}
-          rowsPerPageOptions={[10, 25, 50, 100]}
-          tableStyle={{ minWidth: '50rem' }}
-          ref={tableRef}
-        >
-          <Column field='id' header='ID' style={{ width: '5%' }} />
-          <Column header='Artist' body={artistBodyTemplate} />
-        </DataTable>
+        <>
+          <div className='flex justify-content-left mb-3'>
+            <ToggleButton
+              onLabel=''
+              offLabel=''
+              onIcon='pi pi-table'
+              offIcon='pi pi-bars'
+              checked={checked}
+              onChange={e => setChecked(e.value)}
+              className='w-5rem text-3xl'
+            />
+          </div>
+          {checked && (
+            <>
+              <div className='flex column-gap-2 mb-5'>
+                {[...Array(26).keys()]
+                  .map(i => String.fromCharCode(i + 97))
+                  .map(letter => (
+                    <ToggleButton
+                      key={letter}
+                      className='w-3rem'
+                      onLabel={letter}
+                      offLabel={letter}
+                      checked={selectedLetter === letter}
+                      onChange={_ => setSelectedLetter(letter)}
+                    />
+                  ))}
+              </div>
+              <div className='flex flex-wrap column-gap-1 row-gap-2'>
+                {folders
+                  .filter(folder => getLetterRegex(selectedLetter).test(folder.title))
+                  .map((folder, index) => (
+                    <div
+                      key={folder.id}
+                      className={`w-auto text-lg p-2 border-round${index % 2 === 0 ? ' bg-primary-300 text-white' : ''}`}
+                    >
+                      {artistBodyTemplate(folder)}
+                    </div>
+                  ))}
+              </div>
+            </>
+          )}
+          {!checked && (
+            <DataTable
+              value={folders}
+              stripedRows
+              scrollable
+              scrollHeight='75vh'
+              paginator
+              rows={25}
+              rowsPerPageOptions={[10, 25, 50, 100]}
+              tableStyle={{ minWidth: '50rem' }}
+              ref={tableRef}
+            >
+              <Column field='id' header='ID' style={{ width: '5%' }} />
+              <Column header='Artist' body={artistBodyTemplate} />
+            </DataTable>
+          )}
+        </>
       )}
       {audioSource.source === 'album' && (
         <DataTable
