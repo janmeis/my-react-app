@@ -7,10 +7,13 @@ import { IFolder } from '../model/folder';
 import { InputText } from 'primereact/inputtext';
 import './ApiRequestComponent.scss';
 import { ToggleButton } from 'primereact/togglebutton';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faMusic, faFolder, faFolderOpen } from '@fortawesome/free-solid-svg-icons';
+import { Tag } from 'primereact/tag';
 
 interface AudioSource {
-  dirId: { [key: string]: string };
-  artist?: string;
+  artist: IFolder;
+  album: IFolder;
   source: 'artist' | 'album' | 'track';
 }
 
@@ -20,36 +23,35 @@ const ApiRequestComponent: React.FC = () => {
   const [folders, setFolders] = useState<IFolder[]>([]);
   const [sid, setSid] = useState<string>('');
   const [audioSource, setAudioSource] = useState<AudioSource>({
-    dirId: {},
+    artist: {} as IFolder,
+    album: {} as IFolder,
     source: 'artist',
-  });
+  } as AudioSource);
   const [checked, setChecked] = useState<boolean>(false);
   const [selectedLetter, setSelectedLetter] = useState<string>('a');
 
   const tableRef = React.createRef<DataTable<IFolder[]>>();
 
-  const artistBodyTemplate = (rowData: IFolder) => {
-    const onArtistClick = (): void => {
-      setFolders([]);
-      setAudioSource(prevState => {
-        const _audioSource = {
-          artist: rowData.title,
-          source: 'album',
-        } as AudioSource;
-        prevState.dirId['artist'] = rowData.id;
-        return { ..._audioSource, dirId: prevState.dirId };
-      });
-      tableRef.current?.saveState();
-    };
-
-    return (
-      <a id='tableLink' onClick={() => onArtistClick()}>
-        {rowData.title}
-      </a>
-    );
+  const onArtistClick = (rowData: IFolder): void => {
+    setFolders([]);
+    setAudioSource(_ => ({ artist: rowData, album: {} as IFolder, source: 'album' }) as AudioSource);
+    tableRef.current?.saveState();
   };
 
-  const albumArtistBodyTemplate = () => <span>{audioSource.artist}</span>;
+  const iconBodyTemplate = (rowData: IFolder, onClick: (rowData: IFolder) => void) => (
+    <a className='artist-icon' onClick={_ => onClick(rowData)}>
+      <FontAwesomeIcon id='fa-folder' icon={faFolder} size='lg' />
+      <FontAwesomeIcon id='fa-folder-open' icon={faFolderOpen} size='lg' />
+    </a>
+  );
+
+  const artistBodyTemplate = (rowData: IFolder) => (
+    <a id='tableLink' onClick={_ => onArtistClick(rowData)}>
+      {rowData.title}
+    </a>
+  );
+
+  const albumArtistBodyTemplate = () => <span>{audioSource.artist.title}</span>;
 
   const parseAlbum = (album: string | undefined): { album: string; year: string } => {
     const match = yearAlbumRegex.exec(album || '');
@@ -59,20 +61,15 @@ const ApiRequestComponent: React.FC = () => {
     };
   };
 
+  const onAlbumClick = (rowData: IFolder): void => {
+    setFolders;
+    setAudioSource(prevState => ({ ...prevState, album: rowData, source: 'track' }));
+  };
+
   const albumBodyTemplate = (rowData: IFolder) => {
-    const onAlbumClick = (): void => {
-      setAudioSource(prevState => {
-        const _audioSource = {
-          artist: prevState.artist,
-          source: 'track',
-        } as AudioSource;
-        prevState.dirId['album'] = rowData.id;
-        return { ..._audioSource, dirId: prevState.dirId };
-      });
-    };
     const album = parseAlbum(rowData.title).album;
     return (
-      <a id='tableLink' onClick={() => onAlbumClick()}>
+      <a id='tableLink' onClick={_ => onAlbumClick(rowData)}>
         {album}
       </a>
     );
@@ -129,7 +126,7 @@ const ApiRequestComponent: React.FC = () => {
 
     const fetchData = async () => {
       try {
-        const response = await getTotalAndFolders(audioSource.dirId['artist']);
+        const response = await getTotalAndFolders(audioSource.artist.id);
         setFolders(response.folders);
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -144,14 +141,14 @@ const ApiRequestComponent: React.FC = () => {
 
     const fetchData = async () => {
       try {
-        const response = await getTotalAndFolders(audioSource.dirId['album']);
-        const _folders = response.folders.sort(
+        const response = await getTotalAndFolders(audioSource.album.id);
+        const folders = response.folders.sort(
           (a, b) =>
             (a.album || '').localeCompare(b.album || '') ||
             (a.disc || 0) - (b.disc || 0) ||
             (a.track || 0) - (b.track || 0)
         );
-        setFolders(_folders);
+        setFolders(folders);
       } catch (error) {
         console.error('Error fetching data:', error);
       }
@@ -160,37 +157,12 @@ const ApiRequestComponent: React.FC = () => {
     fetchData();
   }, [audioSource]);
 
-  // useEffect(() => {
-  //   if (audioSource.source === 'track') return;
-
-  //   setTimeout(() => {
-  //     let _folders = [] as IFolder[];
-  //     for (let folder of folders.slice(0, 10)) {
-  //       const fetchData = async () => {
-  //         const response = await getTotalAndFolders(folder.id);
-  //         folder = { ...folder, title: `${folder.title} (${response.total})` };
-  //         _folders = [..._folders, folder];
-  //         console.log('Fetching data for folder:', _folders);
-  //       };
-
-  //       fetchData();
-  //     }
-  //     setFolders(_folders);
-  //   }, 10000);
-  // }, [folders]);
-
   const onBackClick = (): void => {
     setFolders([]);
     if (audioSource.source === 'track') {
-      setAudioSource(prevState => ({
-        ...prevState,
-        source: 'album',
-      }));
+      setAudioSource(prevState => ({ ...prevState, album: {} as IFolder, source: 'album' }));
     } else if (audioSource.source === 'album') {
-      setAudioSource(() => ({
-        dirId: {},
-        source: 'artist',
-      }));
+      setAudioSource(_ => ({ artist: {} as IFolder, album: {} as IFolder, source: 'artist' }));
     }
   };
 
@@ -205,7 +177,7 @@ const ApiRequestComponent: React.FC = () => {
 
       <h3>
         {audioSource.source !== 'artist' && (
-          <a id='back' onClick={() => onBackClick()}>
+          <a id='back' onClick={_ => onBackClick()}>
             <i className='pi pi-arrow-left' />
           </a>
         )}
@@ -243,12 +215,13 @@ const ApiRequestComponent: React.FC = () => {
                 {folders
                   .filter(folder => getLetterRegex(selectedLetter).test(folder.title))
                   .map((folder, index) => (
-                    <div
+                    <Tag
+                      id='artist-tag'
                       key={folder.id}
-                      className={`w-auto text-lg p-2 border-round${index % 2 === 0 ? ' bg-primary-300 text-white' : ''}`}
-                    >
-                      {artistBodyTemplate(folder)}
-                    </div>
+                      severity={`${index % 2 === 0 ? 'secondary' : 'success'}`}
+                      value={artistBodyTemplate(folder)}
+                      className='text-lg text-white p-2'
+                    />
                   ))}
               </div>
             </>
@@ -265,8 +238,9 @@ const ApiRequestComponent: React.FC = () => {
               tableStyle={{ minWidth: '50rem' }}
               ref={tableRef}
             >
+              <Column body={rowData => iconBodyTemplate(rowData, onArtistClick)} style={{ width: '0.35rem' }} />
               <Column field='id' header='ID' style={{ width: '5%' }} />
-              <Column header='Artist' body={artistBodyTemplate} />
+              <Column header='Artist' body={rowData => artistBodyTemplate(rowData)} />
             </DataTable>
           )}
         </>
@@ -282,6 +256,7 @@ const ApiRequestComponent: React.FC = () => {
           rowsPerPageOptions={[10, 25, 50, 100]}
           tableStyle={{ minWidth: '50rem' }}
         >
+          <Column body={rowData => iconBodyTemplate(rowData, onAlbumClick)} style={{ width: '0.35rem' }} />
           <Column field='id' header='ID' style={{ width: '5%' }} />
           <Column header='Artist' body={albumArtistBodyTemplate} />
           <Column header='Album' body={albumBodyTemplate} />
@@ -299,11 +274,20 @@ const ApiRequestComponent: React.FC = () => {
           rowsPerPageOptions={[10, 25, 50, 100]}
           tableStyle={{ minWidth: '50rem' }}
         >
+          <Column
+            body={
+              <span className='artist-icon'>
+                <FontAwesomeIcon id='fa-music' icon={faMusic} size='lg' />
+              </span>
+            }
+            style={{ width: '0.5rem' }}
+          />
           <Column field='id' header='ID' style={{ width: '5%' }} />
           <Column field='artist' header='Artist' />
           <Column field='album' header='Album' />
           <Column field='year' header='Year' />
-          <Column field='disc' header='Disc' />
+          <Column field='title' header='Title' />
+          {/* <Column field='disc' header='Disc' /> */}
           <Column field='track' header='Track' />
           <Column field='durationString' header='Duration' />
           <Column field='filesizeString' header='File size' />

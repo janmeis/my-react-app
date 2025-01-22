@@ -1,5 +1,33 @@
 $link-color: rgb(13, 13, 150);
 
+.artist-icon {
+    display: block;
+    width: 0.3rem;
+    cursor: pointer;
+    color: $link-color;
+    font-weight: 500;
+
+    &>svg {
+        &:visited {
+            color: $link-color;
+        }
+    }
+
+    &>#fa-folder-open {
+        display: none;
+    }
+
+    &:hover {
+        &>#fa-folder-open {
+            display: block;
+        }
+
+        &>#fa-folder {
+            display: none;
+        }
+    }
+}
+
 a {
     cursor: pointer;
     color: $link-color;
@@ -26,7 +54,7 @@ a {
     }
 }
 
-.text-white>a {
+.text-white a {
     color: white !important;
 }
 
