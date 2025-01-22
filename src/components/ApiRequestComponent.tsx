@@ -10,6 +10,7 @@ import { ToggleButton } from 'primereact/togglebutton';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faMusic, faFolder, faFolderOpen } from '@fortawesome/free-solid-svg-icons';
 import { Tag } from 'primereact/tag';
+import { Image } from 'primereact/image';
 
 interface AudioSource {
   artist: IFolder;
@@ -29,6 +30,7 @@ const ApiRequestComponent: React.FC = () => {
   } as AudioSource);
   const [checked, setChecked] = useState<boolean>(false);
   const [selectedLetter, setSelectedLetter] = useState<string>('a');
+  const [cover, setCover] = useState<string>('');
 
   const tableRef = React.createRef<DataTable<IFolder[]>>();
 
@@ -80,12 +82,12 @@ const ApiRequestComponent: React.FC = () => {
     return <span>{year}</span>;
   };
 
-  const getTotalAndFolders = async (dirId?: string): Promise<{ total: number; folders: IFolder[] }> => {
+  const getFolders = async (dirId?: string): Promise<{ total: number; cover: string; folders: IFolder[] }> => {
     let url = `${config.baseUrl}/folder`;
     if (dirId) url += `?dirId=${dirId}`;
     const response = await axios.get(url);
     let _folders = response.data.folders as IFolder[];
-    return { total: response.data.total, folders: _folders };
+    return { total: response.data.total, cover: response.data.cover, folders: _folders };
   };
 
   useEffect(() => {
@@ -106,7 +108,7 @@ const ApiRequestComponent: React.FC = () => {
 
     const fetchData = async () => {
       try {
-        const response = await getTotalAndFolders();
+        const response = await getFolders();
         setFolders(response.folders);
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -126,7 +128,7 @@ const ApiRequestComponent: React.FC = () => {
 
     const fetchData = async () => {
       try {
-        const response = await getTotalAndFolders(audioSource.artist.id);
+        const response = await getFolders(audioSource.artist.id);
         setFolders(response.folders);
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -141,13 +143,14 @@ const ApiRequestComponent: React.FC = () => {
 
     const fetchData = async () => {
       try {
-        const response = await getTotalAndFolders(audioSource.album.id);
+        const response = await getFolders(audioSource.album.id);
         const folders = response.folders.sort(
           (a, b) =>
             (a.album || '').localeCompare(b.album || '') ||
             (a.disc || 0) - (b.disc || 0) ||
             (a.track || 0) - (b.track || 0)
         );
+        setCover(response.cover);
         setFolders(folders);
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -160,6 +163,7 @@ const ApiRequestComponent: React.FC = () => {
   const onBackClick = (): void => {
     setFolders([]);
     if (audioSource.source === 'track') {
+      setCover('');
       setAudioSource(prevState => ({ ...prevState, album: {} as IFolder, source: 'album' }));
     } else if (audioSource.source === 'album') {
       setAudioSource(_ => ({ artist: {} as IFolder, album: {} as IFolder, source: 'artist' }));
@@ -264,34 +268,41 @@ const ApiRequestComponent: React.FC = () => {
         </DataTable>
       )}
       {audioSource.source === 'track' && (
-        <DataTable
-          value={folders}
-          stripedRows
-          scrollable
-          scrollHeight='75vh'
-          paginator
-          rows={25}
-          rowsPerPageOptions={[10, 25, 50, 100]}
-          tableStyle={{ minWidth: '50rem' }}
-        >
-          <Column
-            body={
-              <span className='artist-icon'>
-                <FontAwesomeIcon id='fa-music' icon={faMusic} size='lg' />
-              </span>
-            }
-            style={{ width: '0.5rem' }}
-          />
-          <Column field='id' header='ID' style={{ width: '5%' }} />
-          <Column field='artist' header='Artist' />
-          <Column field='album' header='Album' />
-          <Column field='year' header='Year' />
-          <Column field='title' header='Title' />
-          {/* <Column field='disc' header='Disc' /> */}
-          <Column field='track' header='Track' />
-          <Column field='durationString' header='Duration' />
-          <Column field='filesizeString' header='File size' />
-        </DataTable>
+        <div className='grid'>
+          <div className='col-2'>
+            <Image src={cover} alt='cover' width='350' height='350' />
+          </div>
+          <div className='col'>
+            <DataTable
+              value={folders}
+              stripedRows
+              scrollable
+              scrollHeight='75vh'
+              paginator
+              rows={25}
+              rowsPerPageOptions={[10, 25, 50, 100]}
+              tableStyle={{ minWidth: '50rem' }}
+            >
+              <Column
+                body={
+                  <span className='artist-icon'>
+                    <FontAwesomeIcon id='fa-music' icon={faMusic} size='lg' />
+                  </span>
+                }
+                style={{ width: '0.5rem' }}
+              />
+              <Column field='id' header='ID' style={{ width: '5%' }} />
+              <Column field='artist' header='Artist' />
+              <Column field='album' header='Album' />
+              <Column field='year' header='Year' />
+              <Column field='title' header='Title' />
+              {/* <Column field='disc' header='Disc' /> */}
+              <Column field='track' header='Track' />
+              <Column field='durationString' header='Duration' />
+              <Column field='filesizeString' header='File size' />
+            </DataTable>
+          </div>
+        </div>
       )}
     </div>
   );
