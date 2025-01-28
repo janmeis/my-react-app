@@ -9,27 +9,25 @@ import './ApiRequestComponent.scss';
 import { ToggleButton } from 'primereact/togglebutton';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faMusic, faFolder, faFolderOpen } from '@fortawesome/free-solid-svg-icons';
-import { Tag } from 'primereact/tag';
 import { Image } from 'primereact/image';
+import Breadcrumb from './Breadcrumb';
+import ArtistLetters from './artistLetters';
 
-interface AudioSource {
+export interface IAudioSource {
   artist: IFolder;
   album: IFolder;
   source: 'artist' | 'album' | 'track';
 }
 
-const yearAlbumRegex = /^(?:\[([^\[]*)\]\s*)?(.+)$/;
-
 const ApiRequestComponent: React.FC = () => {
-  const baseUrl = `${location.protocol}//${location.hostname}:${config.port}`;
   const [isSidDisplayed, setIsSidDisplayed] = useState<boolean>(true);
   const [folders, setFolders] = useState<IFolder[]>([]);
   const [sid, setSid] = useState<string>('');
-  const [audioSource, setAudioSource] = useState<AudioSource>({
+  const [audioSource, setAudioSource] = useState<IAudioSource>({
     artist: {} as IFolder,
     album: {} as IFolder,
     source: 'artist',
-  } as AudioSource);
+  } as IAudioSource);
   const [checked, setChecked] = useState<boolean>(false);
   const [selectedLetter, setSelectedLetter] = useState<string>('1');
   const [cover, setCover] = useState<string>('');
@@ -38,28 +36,39 @@ const ApiRequestComponent: React.FC = () => {
 
   setTimeout(() => setIsSidDisplayed(false), 5000);
 
+  const parseUrl = (baseUrl: string): { protocol: string; hostname: string; port: string } => {
+    const urlRegex = /^(https?:\/\/)?([^:\/\s]+)(?:(:\d+))?/;
+    const parsed = urlRegex.exec(baseUrl);
+    return parsed
+      ? { protocol: parsed[1], hostname: parsed[2], port: parsed[3] }
+      : { protocol: 'http://', hostname: 'localhost', port: '' };
+  };
+
+  const baseUrl = `${location.protocol}//${location.hostname}${parseUrl(config.baseUrl).port}`;
+
   const onArtistClick = (rowData: IFolder): void => {
     setFolders([]);
-    setAudioSource(_ => ({ artist: rowData, album: {} as IFolder, source: 'album' }) as AudioSource);
+    setAudioSource(_ => ({ artist: rowData, album: {} as IFolder, source: 'album' }) as IAudioSource);
     tableRef.current?.saveState();
   };
 
-  const iconBodyTemplate = (rowData: IFolder, onClick: (rowData: IFolder) => void) => (
+  const iconBodyTemplate = (rowData: IFolder, onClick: (rowData: IFolder) => void): JSX.Element => (
     <a className='artist-icon' onClick={_ => onClick(rowData)}>
       <FontAwesomeIcon id='fa-folder' icon={faFolder} size='xl' />
       <FontAwesomeIcon id='fa-folder-open' icon={faFolderOpen} size='xl' />
     </a>
   );
 
-  const artistBodyTemplate = (rowData: IFolder) => (
+  const artistBodyTemplate = (rowData: IFolder): JSX.Element => (
     <a id='tableLink' onClick={_ => onArtistClick(rowData)}>
       {rowData.title}
     </a>
   );
 
-  const albumArtistBodyTemplate = () => <span>{audioSource.artist.title}</span>;
+  const albumArtistBodyTemplate = (): JSX.Element => <span>{audioSource.artist.title}</span>;
 
   const parseAlbum = (album: string | undefined): { album: string; year: string } => {
+    const yearAlbumRegex = /^(?:\[([^\[]*)\]\s*)?(.+)$/;
     const match = yearAlbumRegex.exec(album || '');
     return {
       album: match ? match[2] : '',
@@ -72,7 +81,7 @@ const ApiRequestComponent: React.FC = () => {
     setAudioSource(prevState => ({ ...prevState, album: rowData, source: 'track' }));
   };
 
-  const albumBodyTemplate = (rowData: IFolder) => {
+  const albumBodyTemplate = (rowData: IFolder): JSX.Element => {
     const album = parseAlbum(rowData.title).album;
     return (
       <a id='tableLink' onClick={_ => onAlbumClick(rowData)}>
@@ -81,7 +90,7 @@ const ApiRequestComponent: React.FC = () => {
     );
   };
 
-  const yearBodyTemplate = (rowData: IFolder) => {
+  const yearBodyTemplate = (rowData: IFolder): JSX.Element => {
     const year = parseAlbum(rowData.title).year;
     return <span>{year}</span>;
   };
@@ -92,6 +101,15 @@ const ApiRequestComponent: React.FC = () => {
     const response = await axios.get(url);
     let _folders = response.data.folders as IFolder[];
     return { total: response.data.total, cover: response.data.cover, folders: _folders };
+  };
+
+  const parseCover = (coverUrl: string): string => {
+    if (location.hostname === 'localhost') return coverUrl;
+
+    const { hostname } = parseUrl(coverUrl);
+    const _result = coverUrl.replace(hostname, location.hostname);
+    console.log(_result);
+    return _result;
   };
 
   useEffect(() => {
@@ -120,7 +138,7 @@ const ApiRequestComponent: React.FC = () => {
     };
 
     fetchData();
-  }, [sid, audioSource]);
+  }, [audioSource]);
 
   useEffect(() => {
     if (audioSource.source !== 'artist') return;
@@ -154,7 +172,7 @@ const ApiRequestComponent: React.FC = () => {
             (a.disc || 0) - (b.disc || 0) ||
             (a.track || 0) - (b.track || 0)
         );
-        setCover(response.cover);
+        setCover(parseCover(response.cover));
         setFolders(folders);
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -174,20 +192,6 @@ const ApiRequestComponent: React.FC = () => {
     }
   };
 
-  const testFirstLetter = (title: string, selectedLetter: string): boolean => {
-    const firstLetterRegex = (letter: string): RegExp => new RegExp(`^(?:${letter.toUpperCase()})`);
-
-    if (selectedLetter === '1') return /[0-9]/.test(title.charAt(0));
-
-    let firstLetter = title.replace("'", '').charAt(0).toLocaleUpperCase();
-    firstLetter = firstLetter.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); // remove accents - <see="https://www.codu.co/articles/remove-accents-from-a-javascript-string-skgp1inb"/>
-    firstLetter = firstLetter.replace('Ø', 'O'); // fix some special characters
-
-    return /[a-z]/.test(selectedLetter)
-      ? firstLetterRegex(selectedLetter).test(firstLetter)
-      : !/[a-z0-9]/i.test(firstLetter);
-  };
-
   return (
     <div>
       <div id='sidDiv' style={{ display: isSidDisplayed ? 'block' : 'none' }}>
@@ -195,36 +199,8 @@ const ApiRequestComponent: React.FC = () => {
         <InputText type='text' className='p-inputtext' id='sid' name='sid' value={sid} disabled />
       </div>
 
-      <div className='mb-5'>
-        {audioSource.source !== 'artist' && (
-          <div id='breadcrumb' className='flex justify-content-left mb-3'>
-            {audioSource.source === 'album' && (
-              <>
-                <a
-                  id='artist-lnk'
-                  className='pi pi-angle-right mr-3'
-                  style={{ fontSize: '2.5rem' }}
-                  onClick={_ => onBackClick()}
-                />
-                <div className='text-4xl'>{audioSource.artist.title}</div>
-              </>
-            )}
-            {audioSource.source !== 'album' && (
-              <>
-                <div id='artist-lnk' className='pi pi-angle-right mr-3' style={{ fontSize: '2.5rem' }} />
-                <div className='text-4xl'>{audioSource.artist.title}</div>
-                <a
-                  id='album-lnk'
-                  className='pi pi-angle-right ml-3 mr-3'
-                  style={{ fontSize: '2.5rem' }}
-                  onClick={_ => onBackClick()}
-                />
-                <div className='text-4xl'>{parseAlbum(audioSource.album.title).album}</div>
-              </>
-            )}
-          </div>
-        )}
-      </div>
+      <Breadcrumb audioSource={audioSource} parseAlbum={parseAlbum} linkClick={onBackClick} />
+
       {audioSource.source === 'artist' && (
         <>
           <div className='flex justify-content-left mb-3'>
@@ -239,36 +215,15 @@ const ApiRequestComponent: React.FC = () => {
             />
           </div>
           {checked && (
-            <>
-              <div className='flex column-gap-2 mb-5'>
-                {['1', ...[...Array(26).keys()].map(i => String.fromCharCode(i + 97)), '高'].map(letter => (
-                  <ToggleButton
-                    key={letter}
-                    className='w-3rem'
-                    onLabel={letter}
-                    offLabel={letter}
-                    checked={selectedLetter === letter}
-                    onChange={_ => setSelectedLetter(letter)}
-                  />
-                ))}
-              </div>
-              <div className='flex flex-wrap column-gap-1 row-gap-2'>
-                {folders
-                  .filter(folder => testFirstLetter(folder.title, selectedLetter))
-                  .map((folder, index) => (
-                    <Tag
-                      id='artist-tag'
-                      key={folder.id}
-                      severity={`${index % 2 === 0 ? 'secondary' : 'success'}`}
-                      value={artistBodyTemplate(folder)}
-                      className='text-lg text-white p-2'
-                    />
-                  ))}
-              </div>
-            </>
+            <ArtistLetters
+              folders={folders}
+              artistBodyTemplate={artistBodyTemplate}
+              selectedLetter={selectedLetter}
+              selectedLetterClick={setSelectedLetter}
+            />
           )}
           {!checked && (
-            <div style={{ maxWidth: '65vw' }}>
+            <div className='min-w-full'>
               <DataTable
                 value={folders}
                 stripedRows
@@ -288,7 +243,7 @@ const ApiRequestComponent: React.FC = () => {
         </>
       )}
       {audioSource.source === 'album' && (
-        <div style={{ maxWidth: '65vw' }}>
+        <div className='min-w-full'>
           <DataTable
             value={folders}
             stripedRows
@@ -313,7 +268,10 @@ const ApiRequestComponent: React.FC = () => {
             <div className='flex flex-column mt-5'>
               <Image src={cover} alt='cover' width='250' height='250' />
               <div className='text-2xl font-italic mt-3'>{audioSource.artist.title}</div>
-              <div className='text-2xl'>{parseAlbum(audioSource.album.title).album}</div>
+              <div className='text-2xl'>
+                {parseAlbum(audioSource.album.title).album}&nbsp;
+                {folders && folders.length > 0 ? `(${folders[0].year})` : ''}
+              </div>
             </div>
           </div>
           <div className='col'>
@@ -335,11 +293,7 @@ const ApiRequestComponent: React.FC = () => {
                 style={{ width: '0.5rem' }}
               />
               <Column field='id' header='ID' style={{ width: '5%' }} />
-              <Column field='artist' header='Artist' />
-              <Column field='album' header='Album' />
-              <Column field='year' header='Year' />
               <Column field='title' header='Title' />
-              {/* <Column field='disc' header='Disc' /> */}
               <Column field='track' header='Track' />
               <Column field='durationString' header='Duration' />
               <Column field='filesizeString' header='File size' />
