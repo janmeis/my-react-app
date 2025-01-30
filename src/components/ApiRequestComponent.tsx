@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { Column } from 'primereact/column';
-import { DataTable } from 'primereact/datatable';
+import { DataTable, DataTableStateEvent } from 'primereact/datatable';
 import React, { useEffect, useState } from 'react';
 import config from '../config.json';
 import { IFolder } from '../model/folder';
@@ -31,7 +31,10 @@ const ApiRequestComponent: React.FC = () => {
   const [checked, setChecked] = useState<boolean>(false);
   const [selectedLetter, setSelectedLetter] = useState<string>('1');
   const [cover, setCover] = useState<string>('');
-
+  const [pagination, setPagination] = useState<DataTableStateEvent>({
+    first: 0,
+    rows: 25,
+  } as DataTableStateEvent);
   const tableRef = React.createRef<DataTable<IFolder[]>>();
 
   setTimeout(() => setIsSidDisplayed(false), 5000);
@@ -172,6 +175,11 @@ const ApiRequestComponent: React.FC = () => {
     }
   };
 
+  const onPage = (event: DataTableStateEvent) => {
+    console.log(event);
+    setPagination(event);
+  };
+
   const visibleColumns = (audioSource: IAudioSource): { field?: string; header?: string; body?: (rowData: IFolder) => JSX.Element }[] => {
     switch (audioSource.source) {
       case 'artist':
@@ -217,7 +225,9 @@ const ApiRequestComponent: React.FC = () => {
       dataKey='id'
       loading={rowData.length === 0}
       paginator
-      rows={25}
+      rows={pagination.rows}
+      first={pagination.first}
+      onPage={onPage}
       rowsPerPageOptions={[10, 25, 50, 100]}
       alwaysShowPaginator={false}
       ref={tableRef}
@@ -225,7 +235,8 @@ const ApiRequestComponent: React.FC = () => {
       {visibleColumns(audioSource).map((column, index) => (
         <Column key={index} body={column.body} field={column.field} header={column.header} />
       ))}
-    </DataTable>);
+    </DataTable>
+  );
 
   return (
     <div>
