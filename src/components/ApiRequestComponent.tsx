@@ -11,7 +11,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faMusic, faFolder, faFolderOpen } from '@fortawesome/free-solid-svg-icons';
 import { Image } from 'primereact/image';
 import Breadcrumb from './Breadcrumb';
-import ArtistLetters from './artistLetters';
+import ArtistLetters from './ArtistLetters';
 
 export interface IAudioSource {
   artist: IFolder;
@@ -36,12 +36,13 @@ const ApiRequestComponent: React.FC = () => {
 
   setTimeout(() => setIsSidDisplayed(false), 5000);
 
-  const parseUrl = (baseUrl: string): { protocol: string; hostname: string; port: string } => {
+  const parseUrl = (url: string): { protocol: string; hostname: string; port: string } => {
     const urlRegex = /^(https?:\/\/)?([^:\/\s]+)(?:(:\d+))?/;
-    const parsed = urlRegex.exec(baseUrl);
-    return parsed
-      ? { protocol: parsed[1], hostname: parsed[2], port: parsed[3] }
-      : { protocol: 'http://', hostname: 'localhost', port: '' };
+    const parsed = urlRegex.exec(url);
+
+    if (!parsed) return { protocol: 'http://', hostname: 'localhost', port: '' };
+    const [_, protocol, hostname, port] = parsed;
+    return { protocol, hostname, port };
   };
 
   const baseUrl = `${location.protocol}//${location.hostname}${parseUrl(config.baseUrl).port}`;
@@ -77,7 +78,7 @@ const ApiRequestComponent: React.FC = () => {
   };
 
   const onAlbumClick = (rowData: IFolder): void => {
-    setFolders;
+    setFolders([]);
     setAudioSource(prevState => ({ ...prevState, album: rowData, source: 'track' }));
   };
 
@@ -94,16 +95,9 @@ const ApiRequestComponent: React.FC = () => {
     const year = parseAlbum(rowData.title).year;
     return <span>{year}</span>;
   };
-
-  const getFolders = async (dirId?: string): Promise<{ total: number; cover: string; folders: IFolder[] }> => {
-    let url = `${baseUrl}/folder`;
-    if (dirId) url += `?dirId=${dirId}`;
-    const response = await axios.get(url);
-    let _folders = response.data.folders as IFolder[];
-    return { total: response.data.total, cover: response.data.cover, folders: _folders };
-  };
-
-  const parseCover = (coverUrl: string): string => {
+  
+  const parseCover = (coverUrl: string | null): string => {
+    if (!coverUrl) return '';
     if (location.hostname === 'localhost') return coverUrl;
 
     const { hostname } = parseUrl(coverUrl);
@@ -112,6 +106,29 @@ const ApiRequestComponent: React.FC = () => {
     return _result;
   };
 
+  const sortFolders = (audioSource: IAudioSource, folders: IFolder[]): IFolder[] => { 
+    if (audioSource.source !== 'track') return folders;
+    return folders.sort(
+      (a, b) =>
+        (a.album || '').localeCompare(b.album || '') || (a.disc || 0) - (b.disc || 0) || (a.track || 0) - (b.track || 0)
+    );
+  };
+
+  const getFolders = async (audioSource: IAudioSource): Promise<{ total: number; cover: string; folders: IFolder[]; }> => {
+    let url = `${baseUrl}/folder`;
+    const dirId =
+      audioSource.source === 'artist'
+        ? null
+        : audioSource.source === 'album'
+          ? audioSource.artist.id
+          : audioSource.album.id;
+    if (dirId) url += `?dirId=${dirId}`;      
+    const response = await axios.get(url);
+    const _folders = sortFolders(audioSource, response.data.folders);
+    const _cover = parseCover(response.data.cover);
+    return { total: response.data.total, cover: _cover, folders: _folders };
+  };  
+  
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -126,12 +143,12 @@ const ApiRequestComponent: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (audioSource.source !== 'artist') return;
-
     const fetchData = async () => {
       try {
-        const response = await getFolders();
-        setFolders(response.folders);
+        const response = await getFolders(audioSource);
+        setCover(response.cover);
+        const folders = sortFolders(audioSource, response.folders);
+        setFolders(folders);
       } catch (error) {
         console.error('Error fetching data:', error);
       }
@@ -145,43 +162,6 @@ const ApiRequestComponent: React.FC = () => {
     tableRef.current?.restoreState();
   }, [audioSource]);
 
-  useEffect(() => {
-    if (audioSource.source !== 'album') return;
-
-    const fetchData = async () => {
-      try {
-        const response = await getFolders(audioSource.artist.id);
-        setFolders(response.folders);
-      } catch (error) {
-        console.error('Error fetching data:', error);
-      }
-    };
-
-    fetchData();
-  }, [audioSource]);
-
-  useEffect(() => {
-    if (audioSource.source !== 'track') return;
-
-    const fetchData = async () => {
-      try {
-        const response = await getFolders(audioSource.album.id);
-        const folders = response.folders.sort(
-          (a, b) =>
-            (a.album || '').localeCompare(b.album || '') ||
-            (a.disc || 0) - (b.disc || 0) ||
-            (a.track || 0) - (b.track || 0)
-        );
-        setCover(parseCover(response.cover));
-        setFolders(folders);
-      } catch (error) {
-        console.error('Error fetching data:', error);
-      }
-    };
-
-    fetchData();
-  }, [audioSource]);
-
   const onBackClick = (): void => {
     setFolders([]);
     if (audioSource.source === 'track') {
@@ -191,6 +171,61 @@ const ApiRequestComponent: React.FC = () => {
       setAudioSource(_ => ({ artist: {} as IFolder, album: {} as IFolder, source: 'artist' }));
     }
   };
+
+  const visibleColumns = (audioSource: IAudioSource): { field?: string; header?: string; body?: (rowData: IFolder) => JSX.Element }[] => {
+    switch (audioSource.source) {
+      case 'artist':
+        return [
+          { body: rowData => iconBodyTemplate(rowData, onArtistClick) },
+          { field: 'id', header: 'ID' },
+          { field: 'title', header: 'Artist', body: artistBodyTemplate },
+        ];
+      case 'album':
+        return [
+          { body: rowData => iconBodyTemplate(rowData, onAlbumClick) },
+          { field: 'id', header: 'ID' },
+          { field: 'artist', header: 'Artist', body: albumArtistBodyTemplate },
+          { field: 'title', header: 'Album', body: albumBodyTemplate },
+          { field: 'year', header: 'Year', body: yearBodyTemplate },
+        ];
+      case 'track':
+        return [
+          {
+            body: _ => (
+              <span className='artist-icon'>
+                <FontAwesomeIcon id='fa-music' icon={faMusic} size='xl' />
+              </span>
+            ),
+          },
+          { field: 'id', header: 'ID' },
+          { field: 'title', header: 'Title' },
+          { field: 'track', header: 'Track' },
+          { field: 'durationString', header: 'Duration' },
+          { field: 'filesizeString', header: 'File size' },
+        ];
+      default:
+        return [];
+    }
+  };
+  
+  const dataTableTemplate = (audioSource: IAudioSource, rowData: IFolder[]): JSX.Element => (
+    <DataTable
+      value={rowData}
+      stripedRows
+      scrollable
+      scrollHeight='75vh'
+      dataKey='id'
+      loading={rowData.length === 0}
+      paginator
+      rows={25}
+      rowsPerPageOptions={[10, 25, 50, 100]}
+      alwaysShowPaginator={false}
+      ref={tableRef}
+    >
+      {visibleColumns(audioSource).map((column, index) => (
+        <Column key={index} body={column.body} field={column.field} header={column.header} />
+      ))}
+    </DataTable>);
 
   return (
     <div>
@@ -222,82 +257,24 @@ const ApiRequestComponent: React.FC = () => {
               selectedLetterClick={setSelectedLetter}
             />
           )}
-          {!checked && (
-            <div className='min-w-full'>
-              <DataTable
-                value={folders}
-                stripedRows
-                scrollable
-                scrollHeight='75vh'
-                paginator
-                rows={25}
-                rowsPerPageOptions={[10, 25, 50, 100]}
-                ref={tableRef}
-              >
-                <Column body={rowData => iconBodyTemplate(rowData, onArtistClick)} style={{ width: '0.35rem' }} />
-                <Column field='id' header='ID' style={{ width: '5%' }} />
-                <Column header='Artist' body={rowData => artistBodyTemplate(rowData)} />
-              </DataTable>
-            </div>
-          )}
         </>
       )}
-      {audioSource.source === 'album' && (
-        <div className='min-w-full'>
-          <DataTable
-            value={folders}
-            stripedRows
-            scrollable
-            scrollHeight='75vh'
-            paginator
-            rows={25}
-            rowsPerPageOptions={[10, 25, 50, 100]}
-            tableStyle={{ maxWidth: '65vw' }}
-          >
-            <Column body={rowData => iconBodyTemplate(rowData, onAlbumClick)} style={{ width: '0.35rem' }} />
-            <Column field='id' header='ID' style={{ width: '5%' }} />
-            <Column header='Artist' body={albumArtistBodyTemplate} />
-            <Column header='Album' body={albumBodyTemplate} />
-            <Column header='Year' body={yearBodyTemplate} />
-          </DataTable>
-        </div>
-      )}
-      {audioSource.source === 'track' && (
+      {(audioSource.source !== 'artist' || !checked) && (
         <div className='grid'>
-          <div className='col-2'>
-            <div className='flex flex-column mt-5'>
-              <Image src={cover} alt='cover' width='250' height='250' />
-              <div className='text-2xl font-italic mt-3'>{audioSource.artist.title}</div>
-              <div className='text-2xl'>
-                {parseAlbum(audioSource.album.title).album}&nbsp;
-                {folders && folders.length > 0 ? `(${folders[0].year})` : ''}
+          {audioSource.source === 'track' && (
+            <div className='col-2'>
+              <div className='flex flex-column mt-5'>
+                <Image src={cover} alt='cover' width='250' height='250' />
+                <div className='text-2xl font-italic mt-3'>{audioSource.artist.title}</div>
+                <div className='text-2xl'>
+                  {parseAlbum(audioSource.album.title).album}&nbsp;
+                  {folders && folders.length > 0 ? `(${folders[0].year})` : ''}
+                </div>
               </div>
             </div>
-          </div>
+          )}
           <div className='col'>
-            <DataTable
-              value={folders}
-              stripedRows
-              scrollable
-              scrollHeight='75vh'
-              paginator
-              rows={25}
-              rowsPerPageOptions={[10, 25, 50, 100]}
-            >
-              <Column
-                body={
-                  <span className='artist-icon'>
-                    <FontAwesomeIcon id='fa-music' icon={faMusic} size='xl' />
-                  </span>
-                }
-                style={{ width: '0.5rem' }}
-              />
-              <Column field='id' header='ID' style={{ width: '5%' }} />
-              <Column field='title' header='Title' />
-              <Column field='track' header='Track' />
-              <Column field='durationString' header='Duration' />
-              <Column field='filesizeString' header='File size' />
-            </DataTable>
+            {dataTableTemplate(audioSource, folders)}
           </div>
         </div>
       )}

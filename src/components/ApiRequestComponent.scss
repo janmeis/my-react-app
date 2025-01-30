@@ -1,5 +1,15 @@
 $link-color: rgb(13, 13, 150);
 
+.p-datatable .p-datatable-table {
+    tr {
+        th, td {
+            &:first-child {
+                width: 3.5rem;
+            }
+        }
+    }
+}
+
 .artist-icon {
     display: block;
     width: 0.3rem;
