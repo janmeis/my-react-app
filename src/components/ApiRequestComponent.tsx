@@ -12,6 +12,7 @@ import { faMusic, faFolder, faFolderOpen } from '@fortawesome/free-solid-svg-ico
 import { Image } from 'primereact/image';
 import Breadcrumb from './Breadcrumb';
 import ArtistLetters from './ArtistLetters';
+import { Dropdown } from 'primereact/dropdown';
 
 export interface IAudioSource {
   artist: IFolder;
@@ -34,8 +35,10 @@ const ApiRequestComponent: React.FC = () => {
   const [pagination, setPagination] = useState<DataTableStateEvent>({
     first: 0,
     rows: 25,
+    pageCount: 0,
   } as DataTableStateEvent);
-  const tableRef = React.createRef<DataTable<IFolder[]>>();
+  const [paginatorLeftOptions, setPaginatorLeftOptions] = useState<string[]>([]);
+  const rowsPerPage = [10, 25, 50, 100];
 
   setTimeout(() => setIsSidDisplayed(false), 5000);
 
@@ -53,7 +56,6 @@ const ApiRequestComponent: React.FC = () => {
   const onArtistClick = (rowData: IFolder): void => {
     setFolders([]);
     setAudioSource(_ => ({ artist: rowData, album: {} as IFolder, source: 'album' }) as IAudioSource);
-    tableRef.current?.saveState();
   };
 
   const iconBodyTemplate = (rowData: IFolder, onClick: (rowData: IFolder) => void): JSX.Element => (
@@ -145,6 +147,14 @@ const ApiRequestComponent: React.FC = () => {
     fetchData();
   }, []);
 
+  const getPaginatorLeftOptions = (pageCount: number): string[] => [...Array(pageCount).keys()].map(i => `${i + 1}`);
+
+  const resetPagination = (rowsTotal: number): void => { 
+      const pageCount = Math.ceil(rowsTotal / pagination.rows);
+      setPagination(prevState => ({ ...prevState, first: 0, pageCount }));
+      setPaginatorLeftOptions(getPaginatorLeftOptions(pageCount));
+  }
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -152,6 +162,8 @@ const ApiRequestComponent: React.FC = () => {
         setCover(response.cover);
         const folders = sortFolders(audioSource, response.folders);
         setFolders(folders);
+
+        resetPagination(response.total);
       } catch (error) {
         console.error('Error fetching data:', error);
       }
@@ -159,12 +171,7 @@ const ApiRequestComponent: React.FC = () => {
 
     fetchData();
   }, [audioSource]);
-
-  useEffect(() => {
-    if (audioSource.source !== 'artist') return;
-    tableRef.current?.restoreState();
-  }, [audioSource]);
-
+  
   const onBackClick = (): void => {
     setFolders([]);
     if (audioSource.source === 'track') {
@@ -176,8 +183,10 @@ const ApiRequestComponent: React.FC = () => {
   };
 
   const onPage = (event: DataTableStateEvent) => {
-    console.log(event);
+    console.log('onPage', event);
     setPagination(event);
+    if (event.rows !== pagination.rows) 
+      setPaginatorLeftOptions(getPaginatorLeftOptions(Math.ceil(folders.length / event.rows)));
   };
 
   const visibleColumns = (audioSource: IAudioSource): { field?: string; header?: string; body?: (rowData: IFolder) => JSX.Element }[] => {
@@ -215,6 +224,14 @@ const ApiRequestComponent: React.FC = () => {
         return [];
     }
   };
+
+  const paginatorLeftTemplate = (
+    <Dropdown
+      value={`${pagination.first / pagination.rows + 1}`}
+      onChange={e => setPagination(prevState => ({ ...prevState, first: (parseInt(e.value) - 1) * pagination.rows }))}
+      options={paginatorLeftOptions}
+    />
+  );
   
   const dataTableTemplate = (audioSource: IAudioSource, rowData: IFolder[]): JSX.Element => (
     <DataTable
@@ -228,9 +245,10 @@ const ApiRequestComponent: React.FC = () => {
       rows={pagination.rows}
       first={pagination.first}
       onPage={onPage}
-      rowsPerPageOptions={[10, 25, 50, 100]}
+      rowsPerPageOptions={rowsPerPage}
+      paginatorLeft={paginatorLeftTemplate}
+      paginatorRight={<span></span>}
       alwaysShowPaginator={false}
-      ref={tableRef}
     >
       {visibleColumns(audioSource).map((column, index) => (
         <Column key={index} body={column.body} field={column.field} header={column.header} />
