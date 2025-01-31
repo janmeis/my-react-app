@@ -6,6 +6,9 @@ $link-color: rgb(13, 13, 150);
             &:first-child {
                 width: 3.5rem;
             }
+            &:nth-child(2) {
+                width: 7.5rem;
+            }
         }
     }
 }

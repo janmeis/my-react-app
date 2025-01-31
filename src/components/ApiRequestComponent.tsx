@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { Column } from 'primereact/column';
 import { DataTable, DataTableStateEvent } from 'primereact/datatable';
-import React, { useEffect, useState } from 'react';
+import React, { createRef, useContext, useEffect, useState } from 'react';
 import config from '../config.json';
 import { IFolder } from '../model/folder';
 import { InputText } from 'primereact/inputtext';
@@ -13,6 +13,7 @@ import { Image } from 'primereact/image';
 import Breadcrumb from './Breadcrumb';
 import ArtistLetters from './ArtistLetters';
 import { Dropdown } from 'primereact/dropdown';
+import { AppContext } from '../App';
 
 export interface IAudioSource {
   artist: IFolder;
@@ -21,6 +22,7 @@ export interface IAudioSource {
 }
 
 const ApiRequestComponent: React.FC = () => {
+  const appContext = useContext(AppContext);
   const [isSidDisplayed, setIsSidDisplayed] = useState<boolean>(true);
   const [folders, setFolders] = useState<IFolder[]>([]);
   const [sid, setSid] = useState<string>('');
@@ -38,16 +40,17 @@ const ApiRequestComponent: React.FC = () => {
     pageCount: 0,
   } as DataTableStateEvent);
   const [paginatorLeftOptions, setPaginatorLeftOptions] = useState<string[]>([]);
-  const rowsPerPage = [10, 25, 50, 100];
+  const rowsPerPageOptions = [10, 25, 50, 100];
+  const tableRef = createRef<DataTable<IFolder[]>>();
+  const pageRowsRegex = /\/artist\/(\d+)\/(\d+)/;
 
   setTimeout(() => setIsSidDisplayed(false), 5000);
 
   const parseUrl = (url: string): { protocol: string; hostname: string; port: string } => {
     const urlRegex = /^(https?:\/\/)?([^:\/\s]+)(?:(:\d+))?/;
-    const parsed = urlRegex.exec(url);
-
-    if (!parsed) return { protocol: 'http://', hostname: 'localhost', port: '' };
-    const [_, protocol, hostname, port] = parsed;
+    const [, protocol, hostname, port] = urlRegex.exec(url) || [];
+    
+    if (!protocol) return { protocol: 'http://', hostname: 'localhost', port: '' };
     return { protocol, hostname, port };
   };
 
@@ -70,8 +73,6 @@ const ApiRequestComponent: React.FC = () => {
       {rowData.title}
     </a>
   );
-
-  const albumArtistBodyTemplate = (): JSX.Element => <span>{audioSource.artist.title}</span>;
 
   const parseAlbum = (album: string | undefined): { album: string; year: string } => {
     const yearAlbumRegex = /^(?:\[([^\[]*)\]\s*)?(.+)$/;
@@ -150,20 +151,37 @@ const ApiRequestComponent: React.FC = () => {
   const getPaginatorLeftOptions = (pageCount: number): string[] => [...Array(pageCount).keys()].map(i => `${i + 1}`);
 
   const resetPagination = (rowsTotal: number): void => { 
-      const pageCount = Math.ceil(rowsTotal / pagination.rows);
-      setPagination(prevState => ({ ...prevState, first: 0, pageCount }));
-      setPaginatorLeftOptions(getPaginatorLeftOptions(pageCount));
-  }
+    const [, page, rows] = [...(location.pathname.match(pageRowsRegex) || [])].map(x => +x);
+    let _pagination = {} as DataTableStateEvent;
+    if (audioSource.source === 'artist') {
+      const _page = page || appContext?.currentPage!;
+      const _rows = rows || appContext?.rowsPerPage!;
+      const _pageCount = Math.ceil(rowsTotal / _rows);
+      _pagination = { ...pagination, first: (_page - 1) * _rows, rows: _rows, pageCount: _pageCount, totalRecords: rowsTotal };
+      if ((!page || page != _page) || (!rows || rows != _rows)) {
+        const _url = `${location.origin}/artist/${_page}/${_rows}`;
+        window.history.pushState({}, '', _url);
+      }
+    } else {
+      const _pageCount = Math.ceil(rowsTotal / appContext?.rowsPerPage!);
+      _pagination = {...pagination, first: appContext?.firstRow!, rows: appContext?.rowsPerPage!, pageCount: _pageCount, totalRecords: rowsTotal };
+    }
+    console.log('resetPagination', location.pathname, _pagination);
+    setPagination(_pagination);
+    setPaginatorLeftOptions(getPaginatorLeftOptions(_pagination.pageCount!));
+    
+    if (!page || !rows || audioSource.source !== 'artist')
+      tableRef.current?.resetScroll();
+  };
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         const response = await getFolders(audioSource);
+        resetPagination(response.total);
         setCover(response.cover);
         const folders = sortFolders(audioSource, response.folders);
-        setFolders(folders);
-
-        resetPagination(response.total);
+        setFolders(_ => folders);
       } catch (error) {
         console.error('Error fetching data:', error);
       }
@@ -175,7 +193,6 @@ const ApiRequestComponent: React.FC = () => {
   const onBackClick = (): void => {
     setFolders([]);
     if (audioSource.source === 'track') {
-      setCover('');
       setAudioSource(prevState => ({ ...prevState, album: {} as IFolder, source: 'album' }));
     } else if (audioSource.source === 'album') {
       setAudioSource(_ => ({ artist: {} as IFolder, album: {} as IFolder, source: 'artist' }));
@@ -184,9 +201,13 @@ const ApiRequestComponent: React.FC = () => {
 
   const onPage = (event: DataTableStateEvent) => {
     console.log('onPage', event);
-    setPagination(event);
+    if (audioSource.source === 'artist') {
+      const _url = `/artist/${event.first / event.rows + 1}/${event.rows}`;
+      window.history.pushState({}, '', _url);
+    }
     if (event.rows !== pagination.rows) 
       setPaginatorLeftOptions(getPaginatorLeftOptions(Math.ceil(folders.length / event.rows)));
+    setPagination({...event, totalRecords: pagination.totalRecords});
   };
 
   const visibleColumns = (audioSource: IAudioSource): { field?: string; header?: string; body?: (rowData: IFolder) => JSX.Element }[] => {
@@ -201,7 +222,6 @@ const ApiRequestComponent: React.FC = () => {
         return [
           { body: rowData => iconBodyTemplate(rowData, onAlbumClick) },
           { field: 'id', header: 'ID' },
-          { field: 'artist', header: 'Artist', body: albumArtistBodyTemplate },
           { field: 'title', header: 'Album', body: albumBodyTemplate },
           { field: 'year', header: 'Year', body: yearBodyTemplate },
         ];
@@ -228,7 +248,7 @@ const ApiRequestComponent: React.FC = () => {
   const paginatorLeftTemplate = (
     <Dropdown
       value={`${pagination.first / pagination.rows + 1}`}
-      onChange={e => setPagination(prevState => ({ ...prevState, first: (parseInt(e.value) - 1) * pagination.rows }))}
+      onChange={e =>onPage({ ...pagination, first: (+e.value - 1) * pagination.rows })}
       options={paginatorLeftOptions}
     />
   );
@@ -245,10 +265,11 @@ const ApiRequestComponent: React.FC = () => {
       rows={pagination.rows}
       first={pagination.first}
       onPage={onPage}
-      rowsPerPageOptions={rowsPerPage}
+      rowsPerPageOptions={rowsPerPageOptions}
       paginatorLeft={paginatorLeftTemplate}
       paginatorRight={<span></span>}
       alwaysShowPaginator={false}
+      ref={tableRef}
     >
       {visibleColumns(audioSource).map((column, index) => (
         <Column key={index} body={column.body} field={column.field} header={column.header} />
@@ -290,15 +311,31 @@ const ApiRequestComponent: React.FC = () => {
       )}
       {(audioSource.source !== 'artist' || !checked) && (
         <div className='grid'>
-          {audioSource.source === 'track' && (
+          {audioSource.source !== 'artist' && (
             <div className='col-2'>
               <div className='flex flex-column mt-5'>
-                <Image src={cover} alt='cover' width='250' height='250' />
-                <div className='text-2xl font-italic mt-3'>{audioSource.artist.title}</div>
-                <div className='text-2xl'>
-                  {parseAlbum(audioSource.album.title).album}&nbsp;
-                  {folders && folders.length > 0 ? `(${folders[0].year})` : ''}
-                </div>
+                {cover && (
+                  <>
+                    <Image src={cover} alt='cover' width='250' height='250' />
+                    {audioSource.source === 'track' && (
+                      <>
+                        <div className='text-2xl font-italic mt-3'>{audioSource.artist.title}</div>
+                        <div className='text-2xl'>
+                          {parseAlbum(audioSource.album.title).album}&nbsp;
+                          {folders && folders.length > 0 ? `(${folders[0].year})` : ''}
+                        </div>
+                      </>
+                    ) || (
+                        <>
+                          <div className='text-2xl mt-3'>Albums of</div>
+                          <div className='text-2xl font-italic'>
+                            {audioSource.artist.title}&nbsp;
+                            {pagination.totalRecords ? `(${pagination.totalRecords})` : ''}
+                          </div>
+                        </>
+                      )}
+                  </>
+                )}
               </div>
             </div>
           )}
