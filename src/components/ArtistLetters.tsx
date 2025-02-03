@@ -20,18 +20,16 @@ const ArtistLetters: React.FC<IArtistLettersProps> = ({ folders, artistBodyTempl
     firstLetter = firstLetter.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); // remove accents - <see="https://www.codu.co/articles/remove-accents-from-a-javascript-string-skgp1inb"/>
     firstLetter = firstLetter.replace('Ø', 'O'); // fix some special characters
 
-    return /[a-z]/.test(selectedLetter)
-      ? firstLetterRegex(selectedLetter).test(firstLetter)
-      : !/[a-z0-9]/i.test(firstLetter);
+    return /[a-z]/.test(selectedLetter) ? firstLetterRegex(selectedLetter).test(firstLetter) : !/[a-z0-9]/i.test(firstLetter);
   };
 
   return (
     <>
-      <div className='flex column-gap-2 mb-5'>
+      <div className="flex column-gap-2 mb-5">
         {['1', ...[...Array(26).keys()].map(i => String.fromCharCode(i + 97)), '高'].map(letter => (
           <ToggleButton
             key={letter}
-            className='w-3rem'
+            className="w-3rem"
             onLabel={letter}
             offLabel={letter}
             checked={selectedLetter === letter}
@@ -39,16 +37,16 @@ const ArtistLetters: React.FC<IArtistLettersProps> = ({ folders, artistBodyTempl
           />
         ))}
       </div>
-      <div className='flex flex-wrap column-gap-1 row-gap-2'>
+      <div className="flex flex-wrap column-gap-1 row-gap-2">
         {folders
           .filter(folder => testFirstLetter(folder.title, selectedLetter))
           .map((folder, index) => (
             <Tag
-              id='artist-tag'
+              id="artist-tag"
               key={folder.id}
               severity={`${index % 2 === 0 ? 'secondary' : 'success'}`}
               value={artistBodyTemplate(folder)}
-              className='text-lg text-white p-2'
+              className="text-lg text-white p-2"
             />
           ))}
       </div>
