@@ -11,4 +11,5 @@ export interface IFolder {
   track?: number;
   genre?: string;
   year?: number;
+  streamUrl?: string;
 }

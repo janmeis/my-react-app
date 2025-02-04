@@ -19,17 +19,14 @@ $link-color: rgb(13, 13, 150);
     cursor: pointer;
     color: $link-color;
     font-weight: 500;
-
     &>svg {
         &:visited {
             color: $link-color;
         }
     }
-
     &>#fa-folder-open {
         display: none;
     }
-
     &:hover {
         transform: scale(1.2);
         &>#fa-folder-open {
@@ -46,21 +43,16 @@ a {
     cursor: pointer;
     color: $link-color;
     font-weight: 500;
-
     &:visited {
         color: $link-color;
     }
-
     &#tableLink:hover {
         text-decoration: underline;
     }
-
     &#back {
         color: auto;
-
         &>.pi {
             font-size: 2rem;
-
             &:hover {
                 transform: scale(1.1);
             }
@@ -101,4 +93,16 @@ a {
             background-color: rgba(34, 197, 94, 0.5);
         }
     }
+}
+
+.playing-track {
+    transform: scale(1.2);
+    color: #2196f3;
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.6; }
+  100% { opacity: 1; }
 }

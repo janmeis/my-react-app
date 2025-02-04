@@ -1,5 +1,5 @@
 import React from 'react';
-import { IFolder } from '../model/folder';
+import { IFolder } from '../models/folder';
 import { ToggleButton } from 'primereact/togglebutton';
 import { Tag } from 'primereact/tag';
 

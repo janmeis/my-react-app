@@ -1,9 +1,9 @@
 import axios from 'axios';
 import { Column } from 'primereact/column';
 import { DataTable, DataTableStateEvent } from 'primereact/datatable';
-import React, { createRef, useContext, useEffect, useState } from 'react';
+import React, { createRef, useContext, useEffect, useRef, useState } from 'react';
 import config from '../config.json';
-import { IFolder } from '../model/folder';
+import { IFolder } from '../models/folder';
 import { InputText } from 'primereact/inputtext';
 import './ApiRequestComponent.scss';
 import { ToggleButton } from 'primereact/togglebutton';
@@ -42,7 +42,10 @@ const ApiRequestComponent: React.FC = () => {
   const [paginatorLeftOptions, setPaginatorLeftOptions] = useState<string[]>([]);
   const rowsPerPageOptions = [10, 25, 50, 100];
   const tableRef = createRef<DataTable<IFolder[]>>();
+  const audioRef = useRef<HTMLAudioElement>(null);
   const pageRowsRegex = /\/artist\/(\d+)\/(\d+)/;
+  const streamUrlRegex = /(?:\?|&)id=([^&]+)/;
+  const [currentTrack, setCurrentTrack] = useState<string>('');
 
   setTimeout(() => setIsSidDisplayed(false), 5000);
 
@@ -74,6 +77,24 @@ const ApiRequestComponent: React.FC = () => {
     </a>
   );
 
+  const musicBodyTemplate = (rowData: IFolder): JSX.Element => {
+    const playTrack = (): void => {
+      if (audioRef.current && rowData.streamUrl && audioRef.current.src !== rowData.streamUrl) {
+        const [, _currentTrack] = streamUrlRegex.exec(rowData.streamUrl || '') || [];
+        setCurrentTrack(_currentTrack || '');
+        audioRef.current.src = parseSource(rowData.streamUrl);
+        audioRef.current.load(); // This is needed to update the audio source
+        audioRef.current.play();
+      }
+    };
+
+    return (
+      <span className="artist-icon" onClick={playTrack}>
+        <FontAwesomeIcon icon={faMusic} size="lg" className={rowData.id === currentTrack ? 'playing-track' : ''} />
+      </span>
+    );
+  };
+
   const parseAlbum = (album: string | undefined): { album: string; year: string } => {
     const yearAlbumRegex = /^(?:\[([^[]*)\]\s*)?(.+)$/;
     const match = yearAlbumRegex.exec(album || '');
@@ -102,12 +123,12 @@ const ApiRequestComponent: React.FC = () => {
     return <span>{year}</span>;
   };
 
-  const parseCover = (coverUrl: string | null): string => {
-    if (!coverUrl) return '';
-    if (location.hostname === 'localhost') return coverUrl;
+  const parseSource = (sourceUrl: string | null): string => {
+    if (!sourceUrl) return '';
+    if (location.hostname === 'localhost') return sourceUrl;
 
-    const { hostname } = parseUrl(coverUrl);
-    const _result = coverUrl.replace(hostname, location.hostname);
+    const { hostname } = parseUrl(sourceUrl);
+    const _result = sourceUrl.replace(hostname, location.hostname);
     return _result;
   };
 
@@ -122,7 +143,7 @@ const ApiRequestComponent: React.FC = () => {
     if (dirId) url += `?dirId=${dirId}`;
     const response = await axios.get(url);
     const _folders = sortFolders(audioSource, response.data.folders);
-    const _cover = parseCover(response.data.cover);
+    const _cover = parseSource(response.data.cover);
     return { total: response.data.total, cover: _cover, folders: _folders };
   };
 
@@ -230,11 +251,7 @@ const ApiRequestComponent: React.FC = () => {
       case 'track':
         return [
           {
-            body: _ => (
-              <span className="artist-icon">
-                <FontAwesomeIcon id="fa-music" icon={faMusic} size="xl" />
-              </span>
-            ),
+            body: rowData => musicBodyTemplate(rowData),
           },
           { field: 'id', header: 'ID' },
           { field: 'title', header: 'Title' },
@@ -321,32 +338,38 @@ const ApiRequestComponent: React.FC = () => {
           {audioSource.source !== 'artist' && (
             <div className="col-fixed">
               <div className="flex flex-column mt-7">
-                {cover && (
+                {cover && <Image src={cover} alt="cover" width="250" height="250" />}
+                {(audioSource.source === 'track' && (
                   <>
-                    <Image src={cover} alt="cover" width="250" height="250" />
-                    {(audioSource.source === 'track' && (
-                      <>
-                        <div className="text-2xl font-italic mt-3">{audioSource.artist.title}</div>
-                        <div className="text-2xl">
-                          {parseAlbum(audioSource.album.title).album}&nbsp;
-                          {folders && folders.length > 0 ? `(${folders[0].year})` : ''}
-                        </div>
-                      </>
-                    )) || (
-                      <>
-                        <div className="text-2xl mt-3">Albums of</div>
-                        <div className="text-2xl font-italic">
-                          {audioSource.artist.title}&nbsp;
-                          {pagination.totalRecords ? `(${pagination.totalRecords})` : ''}
-                        </div>
-                      </>
-                    )}
+                    <div className="text-2xl font-italic mt-3">{audioSource.artist.title}</div>
+                    <div className="text-2xl">
+                      {parseAlbum(audioSource.album.title).album}&nbsp;
+                      {folders && folders.length > 0 ? `(${folders[0].year})` : ''}
+                    </div>
                   </>
-                )}
+                )) ||
+                  (audioSource.source === 'album' && (
+                    <>
+                      <div className="text-2xl mt-3">Albums of</div>
+                      <div className="text-2xl font-italic">
+                        {audioSource.artist.title}&nbsp;
+                        {pagination.totalRecords ? `(${pagination.totalRecords})` : ''}
+                      </div>
+                    </>
+                  ))}
               </div>
             </div>
           )}
-          <div className="col">{dataTableTemplate(audioSource, folders)}</div>
+          <div className="col">
+            <div className="flex flex-column">
+              <div>{dataTableTemplate(audioSource, folders)}</div>
+              {audioSource.source === 'track' && (
+                <div className="mt-5">
+                  <audio ref={audioRef} src="#" controls />
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
